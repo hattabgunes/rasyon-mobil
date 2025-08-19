@@ -1,6 +1,6 @@
 import { Redirect } from 'expo-router';
 
 export default function Index() {
-  // Uygulama açıldığında login ekranına yönlendir
-  return <Redirect href="/login" />;
+  // Uygulama açıldığında direkt kullanıcı girişi ekranına yönlendir
+  return <Redirect href="/user-login" />;
 }

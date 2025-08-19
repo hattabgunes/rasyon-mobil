@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'reac
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { app } from '../firebaseConfig';
 import { useRouter, useNavigation } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('');
@@ -11,7 +12,41 @@ export default function AdminLogin() {
   const navigation = useNavigation();
 
   useLayoutEffect(() => {
-    navigation.setOptions({ title: 'Admin Girişi' });
+    navigation.setOptions({
+      title: '🔑 Admin Girişi',
+      headerTitleStyle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#e74c3c',
+      },
+      headerStyle: {
+        backgroundColor: '#ffffff',
+        elevation: 0,
+        shadowOpacity: 0,
+        borderBottomWidth: 1,
+        borderBottomColor: '#e74c3c',
+      },
+      headerLeft: () => (
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{
+            marginLeft: 16,
+            backgroundColor: '#f8f9fa',
+            borderRadius: 12,
+            padding: 8,
+            borderWidth: 1,
+            borderColor: '#e74c3c',
+            shadowColor: '#e74c3c',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.3,
+            shadowRadius: 4,
+            elevation: 5,
+          }}
+        >
+          <Ionicons name="arrow-back" size={20} color="#e74c3c" />
+        </TouchableOpacity>
+      ),
+    });
   }, [navigation]);
 
   const handleLogin = async () => {
@@ -39,7 +74,7 @@ export default function AdminLogin() {
         onChangeText={setEmail}
         autoCapitalize="none"
         keyboardType="email-address"
-        placeholderTextColor="#888"
+        placeholderTextColor="#687076"
       />
       <TextInput
         style={styles.input}
@@ -47,7 +82,7 @@ export default function AdminLogin() {
         value={password}
         onChangeText={setPassword}
         secureTextEntry
-        placeholderTextColor="#888"
+        placeholderTextColor="#687076"
       />
       <TouchableOpacity style={styles.button} onPress={handleLogin}>
         <Text style={styles.buttonText}>Giriş Yap</Text>
@@ -57,9 +92,9 @@ export default function AdminLogin() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#181A20', padding: 20 },
-  title: { fontSize: 26, fontWeight: 'bold', marginBottom: 28, color: '#4F8EF7' },
-  input: { borderWidth: 1, borderColor: '#4F8EF7', borderRadius: 10, padding: 13, marginVertical: 12, backgroundColor: '#23263a', fontSize: 18, color: '#fff', width: 260 },
-  button: { backgroundColor: '#23263a', paddingVertical: 16, borderRadius: 10, alignItems: 'center', marginTop: 18, width: 260, borderWidth: 1, borderColor: '#4F8EF7' },
-  buttonText: { color: '#fff', fontSize: 19, fontWeight: 'bold' },
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#ffffff', padding: 20 },
+  title: { fontSize: 26, fontWeight: 'bold', marginBottom: 28, color: '#e74c3c' },
+  input: { borderWidth: 1, borderColor: '#e74c3c', borderRadius: 10, padding: 13, marginVertical: 12, backgroundColor: '#f8f9fa', fontSize: 18, color: '#11181C', width: 260 },
+  button: { backgroundColor: '#e74c3c', paddingVertical: 16, borderRadius: 10, alignItems: 'center', marginTop: 18, width: 260, borderWidth: 1, borderColor: '#e74c3c' },
+  buttonText: { color: '#ffffff', fontSize: 19, fontWeight: 'bold' },
 });

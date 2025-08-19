@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ScrollView } from 'react-native';
-import { getAuth } from 'firebase/auth';
-import { getFirestore, addDoc, collection, Timestamp } from 'firebase/firestore';
-import { app } from '../firebaseConfig';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ScrollView, Modal, Animated, Dimensions } from 'react-native';
 import { useLayoutEffect } from 'react';
 import { useNavigation } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+
+const { width, height } = Dimensions.get('window');
 
 // Bilimsel Büyükbaş Rasyon Hesaplama
 function hesaplaBuyukbasRasyonDetayli(altTur: string, yas: number, canliAgirlik: number, sutKg: number = 0, gebelikAyi: number = 0) {
@@ -227,7 +227,7 @@ const yemTablosu = [
   { label: 'Buğday', oran: 0.15, KM: 0.88, HP: 120, NE: 2.1 },
 ];
 
-function ornekYemRecetesi(ihtiyac) {
+function ornekYemRecetesi(ihtiyac: { KM: number; HP: number; NE: number }) {
   // Toplam KM ihtiyacına göre yemler dağıtılır
   let kalanKM = ihtiyac.KM;
   const recete = yemTablosu.map(yem => {
@@ -274,13 +274,54 @@ export default function Ration() {
   const [age, setAge] = useState('');
   const [result, setResult] = useState<any>(null);
   const [kucukbasAltTur, setKucukbasAltTur] = useState('kuzu');
+  
+  // Modal state'leri
+  const [modalVisible, setModalVisible] = useState(false);
+  const [activeInput, setActiveInput] = useState('');
+  const [modalValue, setModalValue] = useState('');
+  const [modalLabel, setModalLabel] = useState('');
 
   const navigation = useNavigation();
+  
   useLayoutEffect(() => {
-    navigation.setOptions({ title: 'Rasyon Hesaplama' });
+    navigation.setOptions({
+      title: '🧮 Rasyon Hesaplama',
+      headerTitleStyle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#0a7ea4',
+      },
+      headerStyle: {
+        backgroundColor: '#ffffff',
+        elevation: 0,
+        shadowOpacity: 0,
+        borderBottomWidth: 1,
+        borderBottomColor: '#0a7ea4',
+      },
+      headerLeft: () => (
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{
+            marginLeft: 16,
+            backgroundColor: '#f8f9fa',
+            borderRadius: 12,
+            padding: 8,
+            borderWidth: 1,
+            borderColor: '#0a7ea4',
+            shadowColor: '#0a7ea4',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+          }}
+        >
+          <Ionicons name="arrow-back" size={20} color="#0a7ea4" />
+        </TouchableOpacity>
+      ),
+    });
   }, [navigation]);
 
-  const handleCalculate = async () => {
+  const handleCalculate = () => {
     if (!weight) {
       Alert.alert('Uyarı', 'Canlı ağırlık giriniz!');
       return;
@@ -313,56 +354,52 @@ export default function Ration() {
         eksikFazla: yem.eksikFazla
       }
     });
-    // Firestore'a geçmiş kaydı ekle
-    try {
-      const auth = getAuth(app);
-      const user = auth.currentUser;
-      console.log('Kullanıcı durumu:', user ? 'Giriş yapmış' : 'Giriş yapmamış');
-      console.log('Kullanıcı ID:', user?.uid);
-      
-      if (user) {
-        const db = getFirestore(app);
-        console.log('Firestore bağlantısı kuruldu');
-        
-        const historyData = {
-          userId: user.uid,
-          type: 'yemsiz',
-          animalType,
-          weight: weight,
-          milk: milk,
-          pregMonth: pregMonth,
-          age,
-          result: { 
-            ihtiyac: ihtiyac.ihtiyac, 
-            altTur: animalType === 'buyukbas' ? altTur : kucukbasAltTur, 
-            age, 
-            weight, 
-            milk, 
-            pregMonth 
-          },
-          createdAt: Timestamp.now(),
-        };
-        
-        console.log('Kaydedilecek veri:', historyData);
-        
-        const docRef = await addDoc(collection(db, 'history'), historyData);
-        console.log('Rasyon başarıyla kaydedildi. Doküman ID:', docRef.id);
-        Alert.alert('Başarılı', 'Rasyon kaydedildi!');
-      } else {
-        console.log('Kullanıcı giriş yapmamış');
-        Alert.alert('Hata', 'Lütfen önce giriş yapın!');
+  };
+
+  const openModal = (inputType: string, label: string, currentValue: string) => {
+    setActiveInput(inputType);
+    setModalLabel(label);
+    setModalValue(currentValue);
+    setModalVisible(true);
+  };
+
+  const closeModal = () => {
+    setModalVisible(false);
+    setModalValue('');
+    setActiveInput('');
+  };
+
+  const saveModalValue = () => {
+    if (activeInput === 'age') {
+      setAge(modalValue);
+      // Yaşa göre otomatik alt tür seçimi
+      const yasNum = parseInt(modalValue) || 0;
+      if (animalType === 'buyukbas') {
+        if (yasNum >= 0 && yasNum <= 6) {
+          setAltTur('buzagi');
+        } else if (yasNum >= 7 && yasNum <= 15) {
+          setAltTur('dana');
+        } else if (yasNum >= 16) {
+          setAltTur('okuz');
+        }
+      } else if (animalType === 'kucukbas') {
+        if (yasNum >= 0 && yasNum <= 6) {
+          setKucukbasAltTur('kuzu');
+        } else if (yasNum >= 7) {
+          setKucukbasAltTur('koyun');
+        }
       }
-    } catch (e: any) { 
-      console.error('Rasyon kaydetme hatası:', e);
-      console.error('Hata detayı:', e.message);
-      console.error('Hata kodu:', e.code);
-      Alert.alert('Hata', 'Rasyon kaydedilemedi: ' + (e.message || 'Bilinmeyen hata'));
     }
+    if (activeInput === 'weight') setWeight(modalValue);
+    if (activeInput === 'milk') setMilk(modalValue);
+    if (activeInput === 'pregMonth') setPregMonth(modalValue);
+    closeModal();
   };
 
   return (
     <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-      <Text style={styles.title}>Gerçekçi Rasyon Hesaplama</Text>
+      <Text style={styles.title}>Rasyon Hesaplama</Text>
+      
       <View style={styles.card}>
         <Text style={styles.label}>Hayvan Türü</Text>
         <View style={styles.emojiRow}>
@@ -410,35 +447,15 @@ export default function Ration() {
           </>
         )}
         <Text style={styles.label}>Yaş (ay)</Text>
+        <TouchableOpacity 
+          style={styles.inputTouchable} 
+          onPress={() => openModal('age', 'Yaş (ay)', age)}
+        >
+          <Text style={styles.inputText}>{age || 'Örn: 6'}</Text>
+          <Text style={styles.inputIcon}>✏️</Text>
+        </TouchableOpacity>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-          <TextInput
-            style={[styles.input, { flex: 1, marginRight: 10 }]}
-            value={age}
-            onChangeText={(text) => {
-              setAge(text);
-              // Yaşa göre otomatik alt tür seçimi
-              const yasNum = parseInt(text) || 0;
-              if (animalType === 'buyukbas') {
-                if (yasNum >= 0 && yasNum <= 6) {
-                  setAltTur('buzagi');
-                } else if (yasNum >= 7 && yasNum <= 15) {
-                  setAltTur('dana');
-                } else if (yasNum >= 16) {
-                  setAltTur('okuz');
-                }
-              } else if (animalType === 'kucukbas') {
-                if (yasNum >= 0 && yasNum <= 6) {
-                  setKucukbasAltTur('kuzu');
-                } else if (yasNum >= 7) {
-                  setKucukbasAltTur('koyun');
-                }
-              }
-            }}
-            placeholder="Örn: 6"
-            keyboardType="numeric"
-            placeholderTextColor="#888"
-          />
-          <View style={{ backgroundColor: '#23263a', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#4F8EF7' }}>
+          <View style={{ backgroundColor: '#f8f9fa', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#0a7ea4' }}>
             <Text style={{ fontSize: 24 }}>
               {(() => {
                 const yasNum = parseInt(age) || 0;
@@ -458,44 +475,42 @@ export default function Ration() {
           </View>
         </View>
         <Text style={styles.label}>Canlı Ağırlık (kg)</Text>
-        <TextInput
-          style={styles.input}
-          value={weight}
-          onChangeText={setWeight}
-          placeholder="Örn: 40"
-          keyboardType="numeric"
-          placeholderTextColor="#888"
-        />
+        <TouchableOpacity 
+          style={styles.inputTouchable} 
+          onPress={() => openModal('weight', 'Canlı Ağırlık (kg)', weight)}
+        >
+          <Text style={styles.inputText}>{weight || 'Örn: 40'}</Text>
+          <Text style={styles.inputIcon}>✏️</Text>
+        </TouchableOpacity>
         {(animalType === 'buyukbas' && altTur === 'sutinegi') || (animalType === 'kucukbas' && (kucukbasAltTur === 'koyun' || kucukbasAltTur === 'keci')) ? (
           <>
             <Text style={styles.label}>Süt Verimi (kg/gün)</Text>
-            <TextInput
-              style={styles.input}
-              value={milk}
-              onChangeText={setMilk}
-              placeholder="Yoksa 0 yazın"
-              keyboardType="numeric"
-              placeholderTextColor="#888"
-            />
+            <TouchableOpacity 
+              style={styles.inputTouchable} 
+              onPress={() => openModal('milk', 'Süt Verimi (kg/gün)', milk)}
+            >
+              <Text style={styles.inputText}>{milk || 'Yoksa 0 yazın'}</Text>
+              <Text style={styles.inputIcon}>✏️</Text>
+            </TouchableOpacity>
           </>
         ) : null}
         {animalType === 'buyukbas' && altTur === 'sutinegi' && (
           <>
             <Text style={styles.label}>Gebelik Ayı</Text>
-            <TextInput
-              style={styles.input}
-              value={pregMonth}
-              onChangeText={setPregMonth}
-              placeholder="Yoksa 0 yazın"
-              keyboardType="numeric"
-              placeholderTextColor="#888"
-            />
+            <TouchableOpacity 
+              style={styles.inputTouchable} 
+              onPress={() => openModal('pregMonth', 'Gebelik Ayı', pregMonth)}
+            >
+              <Text style={styles.inputText}>{pregMonth || 'Ibka 0 yazın'}</Text>
+              <Text style={styles.inputIcon}>✏️</Text>
+            </TouchableOpacity>
           </>
         )}
         <TouchableOpacity style={styles.button} onPress={handleCalculate}>
           <Text style={styles.buttonText}>✨ Hesapla ✨</Text>
         </TouchableOpacity>
       </View>
+      
       {result && (
         <View style={styles.resultBox}>
           <Text style={styles.resultTitle}>Rasyon Sonucu ({result.animalType === 'buyukbas' ? buyukbasAltTurler.find(t=>t.value===result.altTur)?.label : kucukbasAltTurler.find(t=>t.value===result.altTur)?.label})</Text>
@@ -535,27 +550,152 @@ export default function Ration() {
       {result && result.hata && (
         <Text style={{ color: 'red', marginTop: 20 }}>{result.hata}</Text>
       )}
+
+      {/* Modal Input */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>{modalLabel}</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={modalValue}
+              onChangeText={setModalValue}
+              placeholder="Değer giriniz..."
+              placeholderTextColor="#888"
+              keyboardType="numeric"
+              autoFocus={true}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.modalButtonCancel} onPress={closeModal}>
+                <Text style={styles.modalButtonText}>İptal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalButtonSave} onPress={saveModalValue}>
+                <Text style={styles.modalButtonText}>Kaydet</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flexGrow: 1, backgroundColor: '#181A20', paddingBottom: 40 },
-  container: { flex: 1, alignItems: 'center', backgroundColor: '#181A20', padding: 20 },
-  title: { fontSize: 26, fontWeight: 'bold', marginBottom: 18, color: '#4F8EF7', textAlign: 'center' },
-  card: { backgroundColor: '#23263a', borderRadius: 16, padding: 22, marginBottom: 24, width: '100%', elevation: 3, borderWidth: 1, borderColor: '#4F8EF7' },
-  label: { fontSize: 17, color: '#fff', marginBottom: 6, marginTop: 10 },
+  scroll: { flexGrow: 1, backgroundColor: '#ffffff', paddingBottom: 40 },
+  container: { flex: 1, alignItems: 'center', backgroundColor: '#ffffff', padding: 20 },
+  title: { fontSize: 26, fontWeight: 'bold', marginBottom: 18, color: '#0a7ea4', textAlign: 'center' },
+  card: { backgroundColor: '#f8f9fa', borderRadius: 16, padding: 22, marginBottom: 24, width: '100%', elevation: 3, borderWidth: 1, borderColor: '#0a7ea4', shadowColor: '#0a7ea4', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+  label: { fontSize: 17, color: '#11181C', marginBottom: 6, marginTop: 10, fontWeight: '600' },
   emojiRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  emojiButton: { alignItems: 'center', marginHorizontal: 12, padding: 8, borderRadius: 8, backgroundColor: '#23263a', borderWidth: 1, borderColor: '#4F8EF7' },
-  emojiButtonActive: { backgroundColor: '#4F8EF7' },
+  emojiButton: { alignItems: 'center', marginHorizontal: 12, padding: 8, borderRadius: 8, backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#0a7ea4' },
+  emojiButtonActive: { backgroundColor: '#0a7ea4' },
   emoji: { fontSize: 32 },
-  emojiLabel: { color: '#fff', fontSize: 14, marginTop: 4 },
-  emojiLabelActive: { color: '#fff', fontWeight: 'bold' },
-  input: { borderWidth: 1, borderColor: '#4F8EF7', borderRadius: 10, padding: 13, marginVertical: 8, backgroundColor: '#181A20', fontSize: 18, color: '#fff' },
-  button: { backgroundColor: '#23263a', paddingVertical: 16, borderRadius: 10, alignItems: 'center', marginTop: 18, width: '100%', borderWidth: 1, borderColor: '#4F8EF7' },
-  buttonText: { color: '#fff', fontSize: 19, fontWeight: 'bold' },
-  resultBox: { backgroundColor: '#23263a', borderRadius: 16, padding: 18, marginTop: 18, borderWidth: 1, borderColor: '#4F8EF7' },
-  resultTitle: { fontSize: 19, fontWeight: 'bold', color: '#4F8EF7', marginBottom: 8 },
-  resultLine: { fontSize: 16, color: '#f1f1f1', marginBottom: 2 },
-  resultVal: { fontWeight: 'bold', color: '#ffe066' },
+  emojiLabel: { color: '#11181C', fontSize: 14, marginTop: 4 },
+  emojiLabelActive: { color: '#ffffff', fontWeight: 'bold' },
+  inputTouchable: { 
+    borderWidth: 1, 
+    borderColor: '#0a7ea4', 
+    borderRadius: 10, 
+    padding: 13, 
+    marginVertical: 8, 
+    backgroundColor: '#f8f9fa', 
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  inputText: { 
+    fontSize: 18, 
+    color: '#11181C',
+    flex: 1
+  },
+  inputIcon: { 
+    fontSize: 20,
+    marginLeft: 10
+  },
+  button: { backgroundColor: '#0a7ea4', paddingVertical: 16, borderRadius: 10, alignItems: 'center', marginTop: 18, width: '100%', borderWidth: 1, borderColor: '#0a7ea4', shadowColor: '#0a7ea4', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 3 },
+  buttonText: { color: '#ffffff', fontSize: 19, fontWeight: 'bold' },
+  resultBox: { backgroundColor: '#f8f9fa', borderRadius: 16, padding: 18, marginTop: 18, borderWidth: 1, borderColor: '#0a7ea4', shadowColor: '#0a7ea4', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+  resultTitle: { fontSize: 19, fontWeight: 'bold', color: '#0a7ea4', marginBottom: 8 },
+  resultLine: { fontSize: 16, color: '#11181C', marginBottom: 2 },
+  resultVal: { fontWeight: 'bold', color: '#ff9800' },
+  
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 30,
+    width: width * 0.8,
+    maxWidth: 400,
+    borderWidth: 2,
+    borderColor: '#0a7ea4',
+    elevation: 10,
+    shadowColor: '#0a7ea4',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#0a7ea4',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  modalInput: {
+    borderWidth: 2,
+    borderColor: '#0a7ea4',
+    borderRadius: 15,
+    padding: 20,
+    fontSize: 24,
+    color: '#11181C',
+    backgroundColor: '#f8f9fa',
+    textAlign: 'center',
+    marginBottom: 25,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  modalButtonCancel: {
+    backgroundColor: '#e53935',
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+    borderRadius: 12,
+    flex: 0.45,
+    alignItems: 'center',
+    shadowColor: '#e53935',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  modalButtonSave: {
+    backgroundColor: '#0a7ea4',
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+    borderRadius: 12,
+    flex: 0.45,
+    alignItems: 'center',
+    shadowColor: '#0a7ea4',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  modalButtonText: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
 });
