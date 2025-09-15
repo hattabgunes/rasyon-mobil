@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator, ScrollView, Image } from 'react-native';
-import { getAuth, signInWithEmailAndPassword, GoogleAuthProvider, FacebookAuthProvider, OAuthProvider, signInWithCredential } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
-import { app } from '../firebaseConfig';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as AuthSession from 'expo-auth-session';
+import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import { FacebookAuthProvider, getAuth, GoogleAuthProvider, OAuthProvider, signInWithCredential, signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getFirestore, setDoc } from 'firebase/firestore';
+import React, { useState } from 'react';
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { app } from '../firebaseConfig';
 
 // WebBrowser'ı başlat
 WebBrowser.maybeCompleteAuthSession();
@@ -268,13 +268,6 @@ export default function UserLogin() {
       </View>
 
       <View style={styles.container}>
-        {/* Geri Dönüş Butonu */}
-        <TouchableOpacity 
-          style={styles.backButton} 
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#0a7ea4" />
-        </TouchableOpacity>
         
         {/* Logo */}
         <View style={styles.logoContainer}>
@@ -419,22 +412,6 @@ const styles = StyleSheet.create({
     padding: 20,
     minHeight: '100%',
     position: 'relative',
-  },
-  backButton: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: '#0a7ea4',
-    shadowColor: '#0a7ea4',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-    zIndex: 10,
   },
   logoContainer: {
     marginBottom: 40,

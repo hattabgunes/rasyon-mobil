@@ -433,23 +433,6 @@ export default function Ration() {
               🏠 Ana Sayfa
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={{
-              backgroundColor: '#f8f9fa',
-              borderRadius: 12,
-              padding: 8,
-              borderWidth: 1,
-              borderColor: '#0a7ea4',
-              shadowColor: '#0a7ea4',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 4,
-              elevation: 3,
-            }}
-          >
-            <Ionicons name="arrow-back" size={20} color="#0a7ea4" />
-          </TouchableOpacity>
         </View>
       ),
     });
