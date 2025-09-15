@@ -1,608 +1,459 @@
-import React, { useEffect, useState, useLayoutEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Alert, TextInput, Modal } from 'react-native';
-import { getFirestore, collection, getDocs, doc, updateDoc, Timestamp, addDoc, getDoc } from 'firebase/firestore';
-import { app } from '../firebaseConfig';
-import { useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-
-function formatDate(ts: any) {
-  if (!ts) return '-';
-  if (typeof ts === 'string') return ts;
-  if (ts.seconds) return new Date(ts.seconds * 1000).toLocaleDateString();
-  return '-';
-}
+import { useRouter } from 'expo-router';
+import { collection, getDocs } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { db } from '../firebaseConfig';
 
 export default function AdminPanel() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [supportMessages, setSupportMessages] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [supportLoading, setSupportLoading] = useState(true);
-  const [notifModal, setNotifModal] = useState(false);
-  const [notifUser, setNotifUser] = useState<any>(null);
-  const [notifMsg, setNotifMsg] = useState('');
-  const [activeTab, setActiveTab] = useState<'users' | 'support'>('users');
+  const router = useRouter();
   
-  // Destek cevap modal state'leri
-  const [supportResponseModal, setSupportResponseModal] = useState(false);
-  const [selectedSupportMessage, setSelectedSupportMessage] = useState<any>(null);
-  const [supportResponse, setSupportResponse] = useState('');
-  const db = getFirestore(app);
-  const navigation = useNavigation();
+  // Kullanıcı istatistikleri
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      title: '⚙️ Admin Paneli',
-      headerTitleStyle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#e74c3c',
-      },
-      headerStyle: {
-        backgroundColor: '#ffffff',
-        elevation: 0,
-        shadowOpacity: 0,
-        borderBottomWidth: 1,
-        borderBottomColor: '#e74c3c',
-      },
-      headerLeft: () => (
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={{
-            marginLeft: 16,
-            backgroundColor: '#f8f9fa',
-            borderRadius: 12,
-            padding: 8,
-            borderWidth: 1,
-            borderColor: '#e74c3c',
-            shadowColor: '#e74c3c',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.3,
-            shadowRadius: 4,
-            elevation: 5,
-          }}
-        >
-          <Ionicons name="arrow-back" size={20} color="#e74c3c" />
-        </TouchableOpacity>
-      ),
-    });
-  }, [navigation]);
-
-  const fetchUsers = async () => {
-    setLoading(true);
-    try {
-      const querySnapshot = await getDocs(collection(db, 'users'));
-      const userList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setUsers(userList);
-    } catch (err) {
-      setUsers([]);
-    }
-    setLoading(false);
-  };
-
-  const fetchSupportMessages = async () => {
-    setSupportLoading(true);
-    try {
-      const querySnapshot = await getDocs(collection(db, 'support_messages'));
-      const messageList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-        .sort((a: any, b: any) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-      setSupportMessages(messageList);
-    } catch (err) {
-      setSupportMessages([]);
-    }
-    setSupportLoading(false);
-  };
-
+  // Kullanıcıları yükle
   useEffect(() => {
-    fetchUsers();
-    fetchSupportMessages();
+    loadUsers();
   }, []);
 
-  const setPremium = async (userId: string, days: number) => {
+  const loadUsers = async () => {
     try {
-      console.log('=== PREMIUM VERME İŞLEMİ BAŞLADI ===');
-      console.log('User ID:', userId);
-      console.log('Gün sayısı:', days);
-      
-      const start = Timestamp.now();
-      const end = Timestamp.fromDate(new Date(Date.now() + days * 24 * 60 * 60 * 1000));
-      
-      console.log('Premium başlangıç tarihi:', start.toDate());
-      console.log('Premium bitiş tarihi:', end.toDate());
-      
-      // Kullanıcı dokümanını kontrol et
-      const userRef = doc(db, 'users', userId);
-      const userSnap = await getDoc(userRef);
-      
-      if (!userSnap.exists()) {
-        console.error('Kullanıcı bulunamadı!');
-        Alert.alert('Hata', 'Kullanıcı bulunamadı!');
-        return;
-      }
-      
-      console.log('Mevcut kullanıcı verisi:', userSnap.data());
-      
-      // Premium durumunu güncelle
-      await updateDoc(userRef, {
-        premium: true,
-        premiumStart: start,
-        premiumEnd: end,
-        premiumPlan: 'Admin tarafından verildi',
-        updatedAt: Timestamp.now()
-      });
-      
-      console.log('=== PREMIUM BAŞARIYLA VERİLDİ ===');
-      
-      // Güncellenmiş veriyi kontrol et
-      const updatedSnap = await getDoc(userRef);
-      console.log('Güncellenmiş kullanıcı verisi:', updatedSnap.data());
-      
-      Alert.alert('Başarılı', 'Premium başlatıldı/uzatıldı!');
-      fetchUsers();
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      const users = usersSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setAllUsers(users);
     } catch (error) {
-      console.error('=== PREMIUM VERME HATASI ===');
-      console.error('Hata detayı:', error);
-      Alert.alert('Hata', `Premium verme işlemi başarısız oldu: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`);
-    }
-  };
-
-  const removePremium = async (userId: string) => {
-    await updateDoc(doc(db, 'users', userId), {
-      premium: false,
-      premiumStart: null,
-      premiumEnd: null,
-    });
-    Alert.alert('Başarılı', 'Premium kaldırıldı!');
-    fetchUsers();
-  };
-
-  const sendNotification = async () => {
-    if (!notifMsg.trim()) {
-      Alert.alert('Uyarı', 'Mesaj boş olamaz!');
-      return;
-    }
-    await addDoc(collection(db, 'notifications'), {
-      userId: notifUser.id,
-      email: notifUser.email,
-      message: notifMsg,
-      createdAt: Timestamp.now(),
-      read: false,
-    });
-    setNotifModal(false);
-    setNotifMsg('');
-    Alert.alert('Başarılı', 'Bildirim gönderildi!');
-  };
-
-  const handleRespondToSupport = (message: any) => {
-    setSelectedSupportMessage(message);
-    setSupportResponse('');
-    setSupportResponseModal(true);
-  };
-
-  const sendSupportResponse = async () => {
-    if (!supportResponse.trim()) {
-      Alert.alert('Uyarı', 'Lütfen bir cevap yazın!');
-      return;
-    }
-
-    try {
-      console.log('=== DESTEK CEVABI GÖNDERME BAŞLADI ===');
-      console.log('Seçili mesaj:', selectedSupportMessage);
-      console.log('Cevap:', supportResponse.trim());
-      
-      // Destek mesajını güncelle
-      await updateDoc(doc(db, 'support_messages', selectedSupportMessage.id), {
-        adminResponse: supportResponse.trim(),
-        adminResponseDate: Timestamp.now(),
-        status: 'answered'
-      });
-      
-      console.log('Destek mesajı güncellendi');
-      
-      // Kullanıcıya bildirim gönder
-      const notificationData = {
-        userId: selectedSupportMessage.userId,
-        email: selectedSupportMessage.userEmail,
-        message: `Destek mesajınıza cevap verildi: "${supportResponse.trim()}"`,
-        createdAt: Timestamp.now(),
-        read: false,
-        type: 'support_response'
-      };
-      
-      console.log('Bildirim verisi:', notificationData);
-      
-      const notificationRef = await addDoc(collection(db, 'notifications'), notificationData);
-      console.log('Bildirim gönderildi, ID:', notificationRef.id);
-      
-      Alert.alert('Başarılı', 'Cevap gönderildi ve kullanıcıya bildirim iletildi!');
-      setSupportResponseModal(false);
-      setSupportResponse('');
-      setSelectedSupportMessage(null);
-      fetchSupportMessages();
-    } catch (error) {
-      console.error('=== DESTEK CEVABI GÖNDERME HATASI ===');
-      console.error('Hata detayı:', error);
-      Alert.alert('Hata', `Cevap gönderilemedi: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`);
-    }
-  };
-
-  // Test bildirimi gönderme
-  const sendTestNotification = async (message: any) => {
-    try {
-      console.log('=== TEST BİLDİRİMİ GÖNDERME BAŞLADI ===');
-      console.log('Test mesajı:', message);
-      
-      const notificationData = {
-        userId: message.userId,
-        email: message.userEmail,
-        message: '🧪 Bu bir test bildirimidir! Admin panelinden gönderildi.',
-        createdAt: Timestamp.now(),
-        read: false,
-        type: 'test'
-      };
-      
-      console.log('Test bildirim verisi:', notificationData);
-      
-      const notificationRef = await addDoc(collection(db, 'notifications'), notificationData);
-      console.log('Test bildirimi gönderildi, ID:', notificationRef.id);
-      
-      Alert.alert('Başarılı', 'Test bildirimi gönderildi!');
-    } catch (error) {
-      console.error('=== TEST BİLDİRİMİ GÖNDERME HATASI ===');
-      console.error('Hata detayı:', error);
-      Alert.alert('Hata', `Test bildirimi gönderilemedi: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`);
+      console.error('Kullanıcılar yüklenirken hata:', error);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Admin Paneli</Text>
-      
-      {/* Tab Butonları */}
-      <View style={styles.tabContainer}>
-        <TouchableOpacity 
-          style={[styles.tabButton, activeTab === 'users' && styles.activeTabButton]} 
-          onPress={() => setActiveTab('users')}
-        >
-          <Text style={[styles.tabButtonText, activeTab === 'users' && styles.activeTabButtonText]}>
-            👥 Kullanıcılar
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.tabButton, activeTab === 'support' && styles.activeTabButton]} 
-          onPress={() => setActiveTab('support')}
-        >
-          <Text style={[styles.tabButtonText, activeTab === 'support' && styles.activeTabButtonText]}>
-            🆘 Destek Mesajları
-          </Text>
-        </TouchableOpacity>
+    <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <View style={styles.container}>
+        {/* Arka Plan Dekoratif Öğeleri */}
+        <View style={styles.backgroundContainer}>
+          {/* Sol üst köşe - Kırmızı tonlar */}
+          <View style={styles.backgroundShape1} />
+          <View style={styles.backgroundShape2} />
+          
+          {/* Sağ alt köşe - Mavi tonlar */}
+          <View style={styles.backgroundShape3} />
+          <View style={styles.backgroundShape4} />
+          
+          {/* Orta dekoratif çizgiler */}
+          <View style={styles.backgroundLine1} />
+          <View style={styles.backgroundLine2} />
+          
+          {/* Dekoratif emojiler */}
+          <Text style={styles.backgroundEmojiLeft}>👨‍💼</Text>
+          <Text style={styles.backgroundEmojiRight}>🔧</Text>
+          <Text style={styles.backgroundEmojiTop1}>⚙️</Text>
+          <Text style={styles.backgroundEmojiTop2}>📊</Text>
+          <Text style={styles.backgroundEmojiTop3}>🔐</Text>
+          <Text style={styles.backgroundEmojiBottom1}>👥</Text>
+          <Text style={styles.backgroundEmojiBottom2}>📈</Text>
+          <Text style={styles.backgroundEmojiBottom3}>🎯</Text>
+        </View>
+        
+        {/* Logo */}
+        <View style={styles.logoContainer}>
+          <Image 
+            source={require('../assets/images/logo.jpg')} 
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
+        
+        {/* Başlık */}
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>👨‍💼 Admin Paneli</Text>
+          <Text style={styles.subtitle}>Sistem Yönetim Merkezi</Text>
+        </View>
+
+        {/* İstatistik Kartları */}
+        <View style={styles.statsContainer}>
+          <View style={styles.statCard}>
+            <View style={styles.statIcon}>
+              <Ionicons name="people" size={32} color="#e74c3c" />
+            </View>
+            <Text style={styles.statNumber}>{allUsers.length}</Text>
+            <Text style={styles.statLabel}>Toplam Kullanıcı</Text>
+          </View>
+          
+          <View style={styles.statCard}>
+            <View style={styles.statIcon}>
+              <Ionicons name="checkmark-circle" size={32} color="#27ae60" />
+            </View>
+            <Text style={styles.statNumber}>{allUsers.filter(u => u.isActive).length}</Text>
+            <Text style={styles.statLabel}>Aktif Kullanıcı</Text>
+          </View>
+          
+          <View style={styles.statCard}>
+            <View style={styles.statIcon}>
+              <Ionicons name="shield" size={32} color="#f39c12" />
+            </View>
+            <Text style={styles.statNumber}>{allUsers.filter(u => u.role === 'admin').length}</Text>
+            <Text style={styles.statLabel}>Admin Kullanıcı</Text>
+          </View>
+        </View>
+
+        {/* Ana Menü Butonları */}
+        <View style={styles.menuContainer}>
+          <TouchableOpacity 
+            style={styles.menuButton}
+            onPress={() => router.push('/kullanici-yonetimi')}
+          >
+            <View style={styles.menuIcon}>
+              <Ionicons name="people" size={28} color="#e74c3c" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>👥 Kullanıcı Yönetimi</Text>
+              <Text style={styles.menuDescription}>Kullanıcıları görüntüle, düzenle ve yönet</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#bdc3c7" />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.menuButton}
+            onPress={() => router.push('/bildirim-yonetimi')}
+          >
+            <View style={styles.menuIcon}>
+              <Ionicons name="notifications" size={28} color="#3498db" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>🔔 Bildirim Yönetimi</Text>
+              <Text style={styles.menuDescription}>Bildirimleri gönder ve yönet</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#bdc3c7" />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.menuButton}
+            onPress={() => router.push('/gelen-bildirimler')}
+          >
+            <View style={styles.menuIcon}>
+              <Ionicons name="mail" size={28} color="#2980b9" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>📥 Gelen Bildirimler</Text>
+              <Text style={styles.menuDescription}>Kullanıcı destek mesajlarını görüntüle</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#bdc3c7" />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.menuButton}
+            onPress={() => router.push('/admin-destek')}
+          >
+            <View style={styles.menuIcon}>
+              <Ionicons name="chatbubbles" size={28} color="#16a085" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>💬 Destek Sohbetleri</Text>
+              <Text style={styles.menuDescription}>Kullanıcılarla yazış ve yanıtla</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#bdc3c7" />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.menuButton}
+            onPress={() => router.push('/sistem-ayarlari')}
+          >
+            <View style={styles.menuIcon}>
+              <Ionicons name="settings" size={28} color="#9b59b6" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>⚙️ Sistem Ayarları</Text>
+              <Text style={styles.menuDescription}>Sistem konfigürasyonu</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#bdc3c7" />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.menuButton}
+            onPress={() => router.push('/raporlar-analiz')}
+          >
+            <View style={styles.menuIcon}>
+              <Ionicons name="analytics" size={28} color="#e67e22" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>📊 Raporlar & Analiz</Text>
+              <Text style={styles.menuDescription}>Detaylı sistem raporları</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#bdc3c7" />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.menuButton}
+            onPress={() => router.push('/ana-sayfa')}
+          >
+            <View style={styles.menuIcon}>
+              <Ionicons name="home" size={28} color="#27ae60" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>🏠 Ana Sayfa</Text>
+              <Text style={styles.menuDescription}>Kullanıcı ana sayfasını görüntüle</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#bdc3c7" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Alt Bilgi */}
+        <View style={styles.footerContainer}>
+          <Text style={styles.footerText}>🔐 Güvenli Admin Paneli</Text>
+          <Text style={styles.footerSubtext}>Sistem yönetimi için güvenli alan</Text>
+        </View>
       </View>
-
-      {/* Kullanıcılar Tab */}
-      {activeTab === 'users' && (
-        <>
-          <Text style={styles.subtitle}>Kullanıcı Listesi</Text>
-          {loading ? (
-            <ActivityIndicator size="large" color="#e74c3c" style={{ marginTop: 30 }} />
-          ) : (
-            <FlatList
-              data={users}
-              keyExtractor={item => item.id}
-              renderItem={({ item }) => (
-                <View style={styles.userCard}>
-                  <Text style={styles.userEmail}>{item.email}</Text>
-                  <Text style={styles.userInfo}>Premium: {item.premium ? '✅' : '❌'}</Text>
-                  {item.premium && (
-                    <Text style={styles.userInfo}>
-                      Başlangıç: {formatDate(item.premiumStart)}
-                      {'\n'}Bitiş: {formatDate(item.premiumEnd)}
-                    </Text>
-                  )}
-                  <View style={styles.buttonRow}>
-                    <TouchableOpacity style={styles.premiumBtn} onPress={() => setPremium(item.id, 30)}>
-                      <Text style={styles.premiumBtnText}>Premium 1 Ay</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.premiumBtn} onPress={() => setPremium(item.id, 7)}>
-                      <Text style={styles.premiumBtnText}>+7 Gün</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.premiumBtn, { backgroundColor: '#e53935' }]} onPress={() => removePremium(item.id)}>
-                      <Text style={[styles.premiumBtnText, { color: '#fff' }]}>Premium Kaldır</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <TouchableOpacity style={styles.notifBtn} onPress={() => { setNotifUser(item); setNotifModal(true); }}>
-                    <Text style={styles.notifBtnText}>Bildirim Gönder</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-              ListEmptyComponent={<Text style={{ marginTop: 30, color: '#687076' }}>Kayıtlı kullanıcı yok.</Text>}
-            />
-          )}
-        </>
-      )}
-
-      {/* Destek Mesajları Tab */}
-      {activeTab === 'support' && (
-        <>
-          <Text style={styles.subtitle}>Destek Mesajları</Text>
-          {supportLoading ? (
-            <ActivityIndicator size="large" color="#e74c3c" style={{ marginTop: 30 }} />
-          ) : (
-            <FlatList
-              data={supportMessages}
-              keyExtractor={item => item.id}
-              renderItem={({ item }) => (
-                <View style={styles.supportCard}>
-                  <View style={styles.supportHeader}>
-                    <Text style={styles.supportUser}>{item.userName || item.userEmail}</Text>
-                    <Text style={[styles.supportStatus, 
-                      item.status === 'pending' ? styles.statusPending :
-                      item.status === 'answered' ? styles.statusAnswered :
-                      styles.statusClosed
-                    ]}>
-                      {item.status === 'pending' ? '⏳ Bekliyor' :
-                       item.status === 'answered' ? '✅ Cevaplandı' :
-                       '❌ Kapatıldı'}
-                    </Text>
-                  </View>
-                  <Text style={styles.supportDate}>
-                    {formatDate(item.createdAt)} - {item.userEmail}
-                  </Text>
-                  <Text style={styles.supportMessage}>{item.message}</Text>
-                  
-                  {item.adminResponse && (
-                    <View style={styles.adminResponse}>
-                      <Text style={styles.adminResponseTitle}>👨‍💼 Admin Cevabı:</Text>
-                      <Text style={styles.adminResponseText}>{item.adminResponse}</Text>
-                      <Text style={styles.adminResponseDate}>
-                        {formatDate(item.adminResponseDate)}
-                      </Text>
-                    </View>
-                  )}
-                  
-                  {item.status === 'pending' && (
-                    <TouchableOpacity 
-                      style={styles.respondButton} 
-                      onPress={() => handleRespondToSupport(item)}
-                    >
-                      <Text style={styles.respondButtonText}>💬 Cevap Ver</Text>
-                    </TouchableOpacity>
-                  )}
-                  
-                  {/* Test için manuel bildirim butonu */}
-                  <TouchableOpacity 
-                    style={[styles.respondButton, { backgroundColor: '#ff6b6b', marginTop: 8 }]} 
-                    onPress={() => sendTestNotification(item)}
-                  >
-                    <Text style={styles.respondButtonText}>🧪 Test Bildirimi</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-              ListEmptyComponent={<Text style={{ marginTop: 30, color: '#687076' }}>Destek mesajı yok.</Text>}
-            />
-          )}
-        </>
-      )}
-      <Modal visible={notifModal} transparent animationType="slide">
-        <View style={styles.modalBg}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Bildirim Gönder</Text>
-            <Text style={{ marginBottom: 8, color: '#11181C' }}>{notifUser?.email}</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Mesajınızı yazın..."
-              value={notifMsg}
-              onChangeText={setNotifMsg}
-              multiline
-              placeholderTextColor="#687076"
-            />
-            <View style={{ flexDirection: 'row', marginTop: 12 }}>
-              <TouchableOpacity style={[styles.premiumBtn, { flex: 1 }]} onPress={sendNotification}>
-                <Text style={styles.premiumBtnText}>Gönder</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.premiumBtn, { backgroundColor: '#bbb', flex: 1, marginLeft: 8 }]} onPress={() => setNotifModal(false)}>
-                <Text style={[styles.premiumBtnText, { color: '#222' }]}>İptal</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-      
-      {/* Destek Cevap Modal */}
-      <Modal visible={supportResponseModal} transparent animationType="slide">
-        <View style={styles.modalBg}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>💬 Destek Mesajına Cevap Ver</Text>
-            
-            {selectedSupportMessage && (
-              <View style={styles.supportMessagePreview}>
-                <Text style={styles.supportMessagePreviewTitle}>
-                  Kullanıcı: {selectedSupportMessage.userName || selectedSupportMessage.userEmail}
-                </Text>
-                <Text style={styles.supportMessagePreviewText}>
-                  {selectedSupportMessage.message}
-                </Text>
-              </View>
-            )}
-            
-            <Text style={styles.modalSubtitle}>Cevabınızı yazın:</Text>
-            
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Cevabınızı buraya yazın..."
-              value={supportResponse}
-              onChangeText={setSupportResponse}
-              multiline
-              numberOfLines={4}
-              placeholderTextColor="#687076"
-            />
-            
-            <View style={styles.modalButtonRow}>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.cancelButton]} 
-                onPress={() => {
-                  setSupportResponseModal(false);
-                  setSupportResponse('');
-                  setSelectedSupportMessage(null);
-                }}
-              >
-                <Text style={styles.cancelButtonText}>İptal</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.sendButton]} 
-                onPress={sendSupportResponse}
-              >
-                <Text style={styles.sendButtonText}>Gönder</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#ffffff', padding: 16 },
-  title: { fontSize: 28, fontWeight: 'bold', color: '#e74c3c', textAlign: 'center', marginVertical: 18 },
-  subtitle: { fontSize: 18, fontWeight: 'bold', color: '#11181C', marginBottom: 12, textAlign: 'center' },
-  userCard: { backgroundColor: '#f8f9fa', borderRadius: 12, padding: 16, marginVertical: 8, elevation: 2, borderWidth: 1, borderColor: '#e0e0e0' },
-  userEmail: { fontSize: 16, fontWeight: 'bold', color: '#11181C' },
-  userInfo: { fontSize: 15, color: '#687076', marginTop: 4 },
-  buttonRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
-  premiumBtn: { backgroundColor: '#e74c3c', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginHorizontal: 2 },
-  premiumBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
-  notifBtn: { backgroundColor: '#ffb300', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginTop: 10, alignItems: 'center' },
-  notifBtnText: { color: '#11181C', fontWeight: 'bold', fontSize: 14 },
-  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  modalCard: { backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '90%', maxWidth: 400, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4 },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#e74c3c', textAlign: 'center', marginBottom: 16 },
-  modalSubtitle: { fontSize: 16, color: '#11181C', marginBottom: 12, fontWeight: '600' },
-  modalInput: { borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 8, padding: 12, minHeight: 100, backgroundColor: '#f8f9fa', fontSize: 16, color: '#11181C', textAlignVertical: 'top', marginBottom: 20 },
-  modalButtonRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  modalButton: { flex: 1, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 8, alignItems: 'center' },
-  cancelButton: { backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#e0e0e0' },
-  sendButton: { backgroundColor: '#e74c3c' },
-  cancelButtonText: { color: '#687076', fontSize: 16, fontWeight: 'bold' },
-  sendButtonText: { color: '#ffffff', fontSize: 16, fontWeight: 'bold' },
-  supportMessagePreview: { backgroundColor: '#f8f9fa', padding: 16, borderRadius: 8, marginBottom: 16, borderWidth: 1, borderColor: '#e0e0e0' },
-  supportMessagePreviewTitle: { fontSize: 14, fontWeight: 'bold', color: '#11181C', marginBottom: 8 },
-  supportMessagePreviewText: { fontSize: 14, color: '#11181C', lineHeight: 20 },
-  
-  // Tab stilleri
-  tabContainer: {
-    flexDirection: 'row',
-    marginBottom: 16,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    padding: 4,
-  },
-  tabButton: {
+  scrollContainer: {
     flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  activeTabButton: {
-    backgroundColor: '#e74c3c',
-  },
-  tabButtonText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#687076',
-  },
-  activeTabButtonText: {
-    color: '#ffffff',
-  },
-  
-  // Destek mesajları stilleri
-  supportCard: {
     backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    padding: 16,
-    marginVertical: 8,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
   },
-  supportHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  container: {
+    flexGrow: 1,
+    backgroundColor: '#f8f9fa',
+    minHeight: '100%',
+  },
+  backgroundContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,
+  },
+  backgroundShape1: {
+    position: 'absolute',
+    top: -50,
+    left: -50,
+    width: 200,
+    height: 200,
+    backgroundColor: 'rgba(231, 76, 60, 0.1)',
+    borderRadius: 100,
+  },
+  backgroundShape2: {
+    position: 'absolute',
+    top: 100,
+    left: -30,
+    width: 120,
+    height: 120,
+    backgroundColor: 'rgba(231, 76, 60, 0.05)',
+    borderRadius: 60,
+  },
+  backgroundShape3: {
+    position: 'absolute',
+    bottom: -80,
+    right: -80,
+    width: 250,
+    height: 250,
+    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+    borderRadius: 125,
+  },
+  backgroundShape4: {
+    position: 'absolute',
+    bottom: 50,
+    right: -20,
+    width: 100,
+    height: 100,
+    backgroundColor: 'rgba(52, 152, 219, 0.05)',
+    borderRadius: 50,
+  },
+  backgroundLine1: {
+    position: 'absolute',
+    top: '30%',
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: 'rgba(231, 76, 60, 0.1)',
+  },
+  backgroundLine2: {
+    position: 'absolute',
+    top: '70%',
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+  },
+  backgroundEmojiLeft: {
+    position: 'absolute',
+    top: '20%',
+    left: 20,
+    fontSize: 40,
+    opacity: 0.1,
+  },
+  backgroundEmojiRight: {
+    position: 'absolute',
+    top: '60%',
+    right: 20,
+    fontSize: 40,
+    opacity: 0.1,
+  },
+  backgroundEmojiTop1: {
+    position: 'absolute',
+    top: '10%',
+    left: '30%',
+    fontSize: 30,
+    opacity: 0.1,
+  },
+  backgroundEmojiTop2: {
+    position: 'absolute',
+    top: '15%',
+    right: '30%',
+    fontSize: 30,
+    opacity: 0.1,
+  },
+  backgroundEmojiTop3: {
+    position: 'absolute',
+    top: '25%',
+    left: '50%',
+    fontSize: 30,
+    opacity: 0.1,
+  },
+  backgroundEmojiBottom1: {
+    position: 'absolute',
+    bottom: '20%',
+    left: '20%',
+    fontSize: 30,
+    opacity: 0.1,
+  },
+  backgroundEmojiBottom2: {
+    position: 'absolute',
+    bottom: '15%',
+    right: '20%',
+    fontSize: 30,
+    opacity: 0.1,
+  },
+  backgroundEmojiBottom3: {
+    position: 'absolute',
+    bottom: '25%',
+    left: '60%',
+    fontSize: 30,
+    opacity: 0.1,
+  },
+  logoContainer: {
     alignItems: 'center',
-    marginBottom: 8,
+    marginTop: 60,
+    marginBottom: 20,
+    zIndex: 1,
   },
-  supportUser: {
+  logo: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  titleContainer: {
+    alignItems: 'center',
+    marginBottom: 30,
+    zIndex: 1,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#e74c3c',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#7f8c8d',
+    textAlign: 'center',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingHorizontal: 20,
+    marginBottom: 30,
+    zIndex: 1,
+  },
+  statCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    flex: 1,
+    marginHorizontal: 5,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  statIcon: {
+    marginBottom: 10,
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 5,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#7f8c8d',
+    textAlign: 'center',
+  },
+  menuContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 30,
+    zIndex: 1,
+  },
+  menuButton: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  menuIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#f8f9fa',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  menuContent: {
+    flex: 1,
+  },
+  menuTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 5,
+  },
+  menuDescription: {
+    fontSize: 14,
+    color: '#7f8c8d',
+  },
+  footerContainer: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+    zIndex: 1,
+  },
+  footerText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#11181C',
+    color: '#e74c3c',
+    marginBottom: 5,
   },
-  supportStatus: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  statusPending: {
-    backgroundColor: '#fff3cd',
-    color: '#856404',
-  },
-  statusAnswered: {
-    backgroundColor: '#d4edda',
-    color: '#155724',
-  },
-  statusClosed: {
-    backgroundColor: '#f8d7da',
-    color: '#721c24',
-  },
-  supportDate: {
-    fontSize: 12,
-    color: '#687076',
-    marginBottom: 8,
-  },
-  supportMessage: {
+  footerSubtext: {
     fontSize: 14,
-    color: '#11181C',
-    lineHeight: 20,
-    marginBottom: 12,
+    color: '#7f8c8d',
+    textAlign: 'center',
   },
-  adminResponse: {
-    backgroundColor: '#e8f4fd',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: '#0a7ea4',
-  },
-  adminResponseTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#0a7ea4',
-    marginBottom: 4,
-  },
-  adminResponseText: {
-    fontSize: 14,
-    color: '#11181C',
-    lineHeight: 20,
-    marginBottom: 4,
-  },
-  adminResponseDate: {
-    fontSize: 12,
-    color: '#687076',
-    fontStyle: 'italic',
-  },
-  respondButton: {
-    backgroundColor: '#0a7ea4',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  respondButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  
 });

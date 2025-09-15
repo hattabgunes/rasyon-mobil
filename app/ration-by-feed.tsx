@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ScrollView, Modal, Dimensions } from 'react-native';
 import { useLayoutEffect } from 'react';
-import { useNavigation } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
@@ -334,6 +334,7 @@ export default function RationByFeed() {
   };
 
   const navigation = useNavigation();
+  const router = useRouter();
   useLayoutEffect(() => {
     navigation.setOptions({
       title: '🍽️ Yemle Rasyon Hesaplama',
@@ -350,24 +351,42 @@ export default function RationByFeed() {
         borderBottomColor: '#0a7ea4',
       },
       headerLeft: () => (
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={{
-            marginLeft: 16,
-            backgroundColor: '#f8f9fa',
-            borderRadius: 12,
-            padding: 8,
-            borderWidth: 1,
-            borderColor: '#0a7ea4',
-            shadowColor: '#0a7ea4',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.3,
-            shadowRadius: 4,
-            elevation: 3,
+        <View style={{ marginLeft: 16, flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity
+            onPress={() => router.push('/ana-sayfa')}
+            style={{
+              backgroundColor: '#0a7ea4',
+              borderRadius: 8,
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              marginRight: 8,
+              flexDirection: 'row',
+              alignItems: 'center'
+            }}
+          >
+            <Ionicons name="home" size={16} color="#fff" style={{ marginRight: 4 }} />
+            <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>
+              🏠 Ana Sayfa
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={{
+              backgroundColor: '#f8f9fa',
+              borderRadius: 12,
+              padding: 8,
+              borderWidth: 1,
+              borderColor: '#0a7ea4',
+              shadowColor: '#0a7ea4',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.3,
+              shadowRadius: 4,
+              elevation: 3,
           }}
-        >
-          <Ionicons name="arrow-back" size={20} color="#0a7ea4" />
-        </TouchableOpacity>
+          >
+            <Ionicons name="arrow-back" size={20} color="#0a7ea4" />
+          </TouchableOpacity>
+        </View>
       ),
     });
   }, [navigation]);

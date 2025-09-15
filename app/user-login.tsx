@@ -1,9 +1,9 @@
-import React, { useState, useLayoutEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator, ScrollView, Image } from 'react-native';
 import { getAuth, signInWithEmailAndPassword, GoogleAuthProvider, FacebookAuthProvider, OAuthProvider, signInWithCredential } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 import { app } from '../firebaseConfig';
-import { useRouter, useNavigation } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
@@ -17,7 +17,6 @@ export default function UserLogin() {
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState(false);
   const router = useRouter();
-  const navigation = useNavigation();
 
   // Google OAuth konfigürasyonu
   const [googleRequest, googleResponse, googlePromptAsync] = AuthSession.useAuthRequest(
@@ -57,24 +56,7 @@ export default function UserLogin() {
     { authorizationEndpoint: 'https://appleid.apple.com/auth/authorize' }
   );
 
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      title: '🔐 Giriş Yap',
-      headerTitleStyle: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: '#0a7ea4',
-      },
-      headerStyle: {
-        backgroundColor: '#ffffff',
-        elevation: 0,
-        shadowOpacity: 0,
-        borderBottomWidth: 2,
-        borderBottomColor: '#0a7ea4',
-      },
-      headerShown: true,
-    });
-  }, [navigation]);
+  // Header artık layout'ta gizli olduğu için bu kısım kaldırıldı
 
   // Kullanıcı bilgilerini Firestore'a kaydet
   const ensureUserInFirestore = async (user: any, provider: string) => {
@@ -82,35 +64,20 @@ export default function UserLogin() {
       const db = getFirestore(app);
       const userRef = doc(db, 'users', user.uid);
       
-      // Önce mevcut kullanıcı verisini kontrol et
-      const userSnap = await getDoc(userRef);
-      let existingPremium = false;
-      let existingPremiumStart = null;
-      let existingPremiumEnd = null;
-      
-      if (userSnap.exists()) {
-        const existingData = userSnap.data();
-        existingPremium = existingData.premium || false;
-        existingPremiumStart = existingData.premiumStart || null;
-        existingPremiumEnd = existingData.premiumEnd || null;
-        console.log('Mevcut premium durumu korunuyor:', existingPremium);
-      }
-      
       const userData = {
         uid: user.uid,
         email: user.email,
         name: user.displayName?.split(' ')[0] || '',
         surname: user.displayName?.split(' ').slice(1).join(' ') || '',
         provider: provider,
+        role: 'normal',
+        isActive: true,
         createdAt: new Date(),
-        premium: existingPremium,
-        premiumStart: existingPremiumStart,
-        premiumEnd: existingPremiumEnd,
         lastLogin: new Date(),
       };
       
       await setDoc(userRef, userData, { merge: true });
-      console.log('Kullanıcı verisi güncellendi, premium durumu korundu:', existingPremium);
+      console.log('Kullanıcı verisi güncellendi');
     } catch (error) {
       console.error('Firestore kayıt hatası:', error);
     }
@@ -145,7 +112,7 @@ export default function UserLogin() {
         } else {
           setSocialLoading(false);
           Alert.alert('Başarılı', 'Google ile giriş başarılı!');
-          router.push('/ration-choice');
+          router.push('/ana-sayfa');
         }
       }
     } catch (error) {
@@ -184,7 +151,7 @@ export default function UserLogin() {
         } else {
           setSocialLoading(false);
           Alert.alert('Başarılı', 'Facebook ile giriş başarılı!');
-          router.push('/ration-choice');
+          router.push('/ana-sayfa');
         }
       }
     } catch (error) {
@@ -226,7 +193,7 @@ export default function UserLogin() {
         } else {
           setSocialLoading(false);
           Alert.alert('Başarılı', 'Apple ile giriş başarılı!');
-          router.push('/ration-choice');
+          router.push('/ana-sayfa');
         }
       }
     } catch (error) {
@@ -258,14 +225,14 @@ export default function UserLogin() {
         setLoading(false);
         Alert.alert('Başarılı', 'Süper admin girişi başarılı!');
         router.push('/ration-choice?admin=true');
-      } else {
-        // Normal kullanıcı girişi
-        // Firestore ekleme işlemini arka planda başlat
-        ensureUserInFirestore(userCred.user, 'Email');
-        setLoading(false);
-        Alert.alert('Başarılı', 'Giriş başarılı!');
-        router.push('/ration-choice');
-      }
+              } else {
+          // Normal kullanıcı girişi
+          // Firestore ekleme işlemini arka planda başlat
+          ensureUserInFirestore(userCred.user, 'Email');
+          setLoading(false);
+          Alert.alert('Başarılı', 'Giriş başarılı!');
+          router.push('/ana-sayfa');
+        }
     } catch (error: any) {
       setLoading(false);
       if (error.code === 'auth/user-not-found') {
@@ -301,6 +268,14 @@ export default function UserLogin() {
       </View>
 
       <View style={styles.container}>
+        {/* Geri Dönüş Butonu */}
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={() => router.back()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#0a7ea4" />
+        </TouchableOpacity>
+        
         {/* Logo */}
         <View style={styles.logoContainer}>
           <Image 
@@ -443,6 +418,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff', 
     padding: 20,
     minHeight: '100%',
+    position: 'relative',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#0a7ea4',
+    shadowColor: '#0a7ea4',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 10,
   },
   logoContainer: {
     marginBottom: 40,

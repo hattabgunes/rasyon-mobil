@@ -1,10 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView, Image } from 'react-native';
 import { getAuth, signOut, sendPasswordResetEmail, deleteUser } from 'firebase/auth';
 import { getFirestore, doc, getDoc, deleteDoc, collection, addDoc } from 'firebase/firestore';
 import { app } from '../firebaseConfig';
 import { useRouter, useNavigation } from 'expo-router';
-import { useLayoutEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function Profilim() {
@@ -109,15 +108,7 @@ export default function Profilim() {
       const premiumEndDate = userData.premiumEnd.seconds ? new Date(userData.premiumEnd.seconds * 1000) : new Date(userData.premiumEnd);
       const currentDate = new Date();
       
-      if (premiumEndDate > currentDate) {
-        const daysLeft = Math.ceil((premiumEndDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
-        Alert.alert(
-          'Premium Üyelik Aktif',
-          `Premium üyeliğiniz ${daysLeft} gün daha aktif. Üyeliğiniz bitmeden hesabınızı silemezsiniz.`,
-          [{ text: 'Tamam', style: 'default' }]
-        );
-        return;
-      }
+
     }
     
     console.log('Premium kontrolü geçildi, hesap silme onayı isteniyor');
@@ -226,84 +217,48 @@ export default function Profilim() {
           />
         </View>
 
+        <Text style={styles.title}>Profilim</Text>
         <Text style={styles.email}>{userData?.email || ''}</Text>
         <Text style={styles.name}>{userData?.name} {userData?.surname}</Text>
-        <Text style={styles.title}>Profilim</Text>
         <View style={styles.avatarContainer}>
           <Text style={styles.avatar}>👤</Text>
         </View>
         {loading ? (
           <ActivityIndicator size="large" color="#0a7ea4" style={{ marginTop: 30 }} />
         ) : userData ? (
-          <View style={styles.card}>
-            <Text style={styles.label}>Premium:</Text>
-            <Text style={styles.value}>{userData.premium ? '✅ Aktif' : '❌ Pasif'}</Text>
-            {userData.premium ? (
-              <>
-                <Text style={styles.label}>Başlangıç:</Text>
-                <Text style={styles.value}>{formatDate(userData.premiumStart)}</Text>
-                <Text style={styles.label}>Bitiş:</Text>
-                <Text style={styles.value}>{formatDate(userData.premiumEnd)}</Text>
-              </>
-            ) : (
-              <View style={styles.premiumInfo}>
-                <Text style={styles.premiumInfoText}>
-                  🌟 Premium özelliklerini kullanmak için abone olun!
-                </Text>
-                <Text style={styles.premiumFeatures}>
-                  ✅ Sınırsız rasyon hesaplama{'\n'}
-                  ✅ Detaylı raporlar{'\n'}
-                  ✅ Yem önerileri{'\n'}
-                  ✅ Geçmiş kayıtları{'\n'}
-                  ✅ Öncelikli destek
-                </Text>
-              </View>
-            )}
+          <View style={styles.profileCard}>
+            <Text style={styles.profileTitle}>Hesap Bilgileri</Text>
+            <View style={styles.profileRow}>
+              <Text style={styles.profileLabel}>Ad Soyad</Text>
+              <Text style={styles.profileValue}>{`${userData?.name || '-'} ${userData?.surname || ''}`.trim()}</Text>
+            </View>
+            <View style={styles.profileRow}>
+              <Text style={styles.profileLabel}>E-posta</Text>
+              <Text style={styles.profileValue}>{userData?.email || '-'}</Text>
+            </View>
+            <View style={styles.profileActions}>
+              <TouchableOpacity style={styles.actionPill} onPress={handlePasswordReset}>
+                <Ionicons name="key-outline" size={18} color="#0a7ea4" />
+                <Text style={styles.actionPillText}>Parolayı Sıfırla</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.actionPill, { borderColor: '#e53935' }]} onPress={handleLogout}>
+                <Ionicons name="log-out-outline" size={18} color="#e53935" />
+                <Text style={[styles.actionPillText, { color: '#e53935' }]}>Çıkış Yap</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : (
           <Text style={{ color: '#11181C', marginTop: 30 }}>Kullanıcı bilgisi bulunamadı.</Text>
         )}
-        {!userData?.premium && (
-          <TouchableOpacity 
-            style={styles.premiumBtn} 
-            onPress={() => router.push('/premium-purchase')}
-          >
-            <Text style={styles.premiumBtnText}>🌟 Premium Ol</Text>
-          </TouchableOpacity>
-        )}
+
         
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Çıkış Yap</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.resetBtn} onPress={handlePasswordReset}>
-          <Text style={styles.resetText}>Şifre Değiştir</Text>
-        </TouchableOpacity>
+        
         <TouchableOpacity
-          style={[
-            styles.deleteBtn,
-            // Premium üyelerin süresi dolmamışsa butonu devre dışı bırak
-            (userData?.premium && userData?.premiumEnd && 
-             (userData.premiumEnd.seconds ? new Date(userData.premiumEnd.seconds * 1000) : new Date(userData.premiumEnd)) > new Date()) && 
-            styles.deleteBtnDisabled
-          ]}
+          style={styles.deleteBtn}
           onPress={handleDeleteAccount}
-          disabled={
-            userData?.premium && userData?.premiumEnd && 
-            (userData.premiumEnd.seconds ? new Date(userData.premiumEnd.seconds * 1000) : new Date(userData.premiumEnd)) > new Date()
-          }
         >
-          <Text style={[
-            styles.deleteText,
-            // Premium üyelerin süresi dolmamışsa metni soluk göster
-            (userData?.premium && userData?.premiumEnd && 
-             (userData.premiumEnd.seconds ? new Date(userData.premiumEnd.seconds * 1000) : new Date(userData.premiumEnd)) > new Date()) && 
-            styles.deleteTextDisabled
-          ]}>
-            {userData?.premium && userData?.premiumEnd && 
-             (userData.premiumEnd.seconds ? new Date(userData.premiumEnd.seconds * 1000) : new Date(userData.premiumEnd)) > new Date()
-              ? 'Premium Aktif - Silinemez'
-              : 'Hesabı Sil'
-            }
+          <Text style={styles.deleteText}>
+            Hesabı Sil
           </Text>
         </TouchableOpacity>
         
@@ -415,22 +370,26 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   avatar: { fontSize: 48, color: '#0a7ea4' },
-  card: { 
-    backgroundColor: '#f8f9fa', 
-    borderRadius: 16, 
-    padding: 22, 
-    marginBottom: 24, 
-    width: '100%', 
-    elevation: 3, 
-    borderWidth: 1, 
-    borderColor: '#0a7ea4',
-    shadowColor: '#0a7ea4',
+  profileCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
   },
-  label: { fontSize: 16, color: '#687076', marginTop: 10, fontWeight: '600' },
-  value: { fontSize: 18, color: '#11181C', fontWeight: 'bold', marginBottom: 4 },
+  profileTitle: { fontSize: 18, fontWeight: 'bold', color: '#0a7ea4', marginBottom: 10 },
+  profileRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+  profileLabel: { fontSize: 14, color: '#687076' },
+  profileValue: { fontSize: 15, color: '#11181C', fontWeight: '600' },
+  profileActions: { flexDirection: 'row', gap: 10, justifyContent: 'flex-end', marginTop: 12 },
+  actionPill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#0a7ea4', borderRadius: 20, paddingVertical: 8, paddingHorizontal: 12 },
+  actionPillText: { color: '#0a7ea4', fontWeight: '600' },
   logoutBtn: { 
     backgroundColor: '#e53935', 
     borderRadius: 25, 
@@ -486,45 +445,5 @@ const styles = StyleSheet.create({
     color: '#666666',
   },
   
-  // Premium stilleri
-  premiumInfo: {
-    marginTop: 15,
-    padding: 15,
-    backgroundColor: '#fff3cd',
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#ffc107',
-  },
-  premiumInfoText: {
-    color: '#856404',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  premiumFeatures: {
-    color: '#11181C',
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'left',
-  },
-  premiumBtn: {
-    backgroundColor: '#ffd700',
-    borderRadius: 25,
-    paddingVertical: 16,
-    paddingHorizontal: 40,
-    marginTop: 20,
-    marginBottom: 10,
-    elevation: 5,
-    shadowColor: '#ffd700',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  premiumBtnText: {
-    color: '#000',
-    fontWeight: 'bold',
-    fontSize: 20,
-    textAlign: 'center',
-  },
+  // Premium alanları kaldırıldı
 });

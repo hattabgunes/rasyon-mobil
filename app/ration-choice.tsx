@@ -22,19 +22,20 @@ export default function RationChoice() {
   const params = useLocalSearchParams();
   const isAdmin = params.admin === 'true';
   
-  // Kullanım süresi kontrolü
-  const [isPremium, setIsPremium] = useState(false);
-  const [daysLeft, setDaysLeft] = useState(3);
-  const [isExpired, setIsExpired] = useState(false);
+
   
-  // Destek sistemi state'leri
-  const [supportModalVisible, setSupportModalVisible] = useState(false);
-  const [supportMessage, setSupportMessage] = useState('');
-  
-  // Bildirim sistemi state'leri
-  const [notificationModalVisible, setNotificationModalVisible] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+
+
+  // Bildirimleri getiren güvenli no-op fonksiyon (bu ekranda badge kullanılmıyor)
+  const fetchNotifications = async () => {
+    try {
+      // Gerekirse burada kullanıcı bildirimlerini çekebilirsiniz.
+      // Şu an için sadece hata önleyici ve log amaçlı tutuluyor.
+      return;
+    } catch (err) {
+      console.log('fetchNotifications error:', err);
+    }
+  };
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -53,17 +54,36 @@ export default function RationChoice() {
       },
       headerLeft: () => (
         <View style={{ marginLeft: 16, flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{
-            backgroundColor: isAdmin ? '#e74c3c' : '#0a7ea4',
-            borderRadius: 8,
-            paddingHorizontal: 12,
-            paddingVertical: 6,
-            marginRight: 8
-          }}>
+          <TouchableOpacity
+            onPress={() => router.push('/ana-sayfa')}
+            style={{
+              backgroundColor: isAdmin ? '#e74c3c' : '#0a7ea4',
+              borderRadius: 8,
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              marginRight: 8,
+              flexDirection: 'row',
+              alignItems: 'center'
+            }}
+          >
+            <Ionicons name="home" size={16} color="#fff" style={{ marginRight: 4 }} />
             <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>
-              {isAdmin ? '⚙️ ADMIN' : (isPremium ? '🌟 PREMIUM' : 'FREE')}
+              {isAdmin ? '🏠 Ana Sayfa' : '🏠 Ana Sayfa'}
             </Text>
-          </View>
+          </TouchableOpacity>
+          {isAdmin && (
+            <View style={{
+              backgroundColor: '#e74c3c',
+              borderRadius: 8,
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              marginRight: 8
+            }}>
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>
+                ⚙️ ADMIN
+              </Text>
+            </View>
+          )}
         </View>
       ),
       headerRight: () => (
@@ -106,30 +126,12 @@ export default function RationChoice() {
         </View>
       ),
     });
-  }, [navigation, isPremium, isAdmin]);
+  }, [navigation, isAdmin]);
 
-  useEffect(() => {
-    if (!isAdmin) {
-      checkUsageTime();
-    }
-  }, [isAdmin]);
-
-  // Premium durumunu sürekli kontrol et
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (!isAdmin) {
-        checkUsageTime();
-      }
-    }, 2000); // Her 2 saniyede bir kontrol et
-
-    return () => clearInterval(interval);
-  }, [isAdmin]);
-
-  // Sayfa odaklandığında premium durumunu kontrol et
+  // Sayfa odaklandığında bildirimleri getir
   useEffect(() => {
     const handleAppStateChange = (nextAppState: string) => {
       if (nextAppState === 'active' && !isAdmin) {
-        checkUsageTime();
         fetchNotifications();
       }
     };
@@ -138,207 +140,9 @@ export default function RationChoice() {
     return () => subscription?.remove();
   }, [isAdmin]);
 
-  // Bildirimleri getir
-  const fetchNotifications = async () => {
-    try {
-      console.log('=== BİLDİRİM GETİRME BAŞLADI ===');
-      
-      const auth = getAuth(app);
-      const user = auth.currentUser;
-      
-      if (!user) {
-        console.log('Kullanıcı giriş yapmamış!');
-        return;
-      }
 
-      console.log('Kullanıcı UID:', user.uid);
-      console.log('Kullanıcı Email:', user.email);
 
-      const db = getFirestore(app);
-      const notificationsRef = collection(db, 'notifications');
-      // Geçici olarak sadece userId ile filtreleme yapıyoruz (index olmadan)
-      const q = query(notificationsRef, where('userId', '==', user.uid));
-      const querySnapshot = await getDocs(q);
-      
-      console.log('Bildirim sayısı:', querySnapshot.docs.length);
-      
-      const notificationList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      // Client-side'da sıralama yapıyoruz
-      notificationList.sort((a: any, b: any) => {
-        const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt);
-        const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
-        return dateB.getTime() - dateA.getTime();
-      });
-      console.log('Bildirim listesi:', notificationList);
-      
-      setNotifications(notificationList);
-      
-      const unreadNotifications = notificationList.filter((notif: any) => !notif.read);
-      console.log('Okunmamış bildirim sayısı:', unreadNotifications.length);
-      
-      setUnreadCount(unreadNotifications.length);
-      console.log('=== BİLDİRİM GETİRME TAMAMLANDI ===');
-    } catch (error) {
-      console.error('=== BİLDİRİM GETİRME HATASI ===');
-      console.error('Hata detayı:', error);
-    }
-  };
 
-  // Bildirimleri okundu olarak işaretle
-  const markNotificationsAsRead = async () => {
-    try {
-      const auth = getAuth(app);
-      const user = auth.currentUser;
-      
-      if (!user) return;
-
-      const db = getFirestore(app);
-      const unreadNotifications = notifications.filter((notif: any) => !notif.read);
-      
-      for (const notif of unreadNotifications) {
-        await updateDoc(doc(db, 'notifications', notif.id), {
-          read: true,
-          readAt: Timestamp.now()
-        });
-      }
-      
-      setUnreadCount(0);
-      fetchNotifications();
-    } catch (error) {
-      console.error('Bildirim okuma hatası:', error);
-    }
-  };
-
-  // Sayfa yüklendiğinde bildirimleri getir
-  useEffect(() => {
-    if (!isAdmin) {
-      fetchNotifications();
-    }
-  }, [isAdmin]);
-
-  // Premium durumu değiştiğinde log
-  useEffect(() => {
-    console.log('=== PREMIUM STATE DEĞİŞTİ ===');
-    console.log('Yeni isPremium değeri:', isPremium);
-    console.log('Yeni isExpired değeri:', isExpired);
-    console.log('Yeni daysLeft değeri:', daysLeft);
-  }, [isPremium, isExpired, daysLeft]);
-
-  // Premium durumu ve kullanım süresi kontrolü
-  const checkUsageTime = async () => {
-    try {
-      console.log('=== PREMIUM KONTROL İŞLEMİ BAŞLADI ===');
-      
-      // Önce premium durumunu kontrol et
-      const auth = getAuth(app);
-      const user = auth.currentUser;
-      
-      if (!user) {
-        console.log('Kullanıcı giriş yapmamış!');
-        return;
-      }
-      
-      console.log('Kullanıcı UID:', user.uid);
-      console.log('Kullanıcı Email:', user.email);
-      
-      const db = getFirestore(app);
-      const userRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
-      
-      if (userSnap.exists()) {
-        const userData = userSnap.data();
-        const isUserPremium = userData.premium;
-        
-        console.log('=== KULLANICI VERİSİ ===');
-        console.log('Premium durumu:', isUserPremium);
-        console.log('Premium başlangıç:', userData.premiumStart);
-        console.log('Premium bitiş:', userData.premiumEnd);
-        console.log('Premium plan:', userData.premiumPlan);
-        console.log('Tüm kullanıcı verisi:', userData);
-        
-        setIsPremium(isUserPremium);
-        
-        // Premium kullanıcılar için süre sınırı yok
-        if (isUserPremium) {
-          setIsExpired(false);
-          setDaysLeft(999); // Premium kullanıcılar için sınırsız
-          console.log('=== PREMIUM KULLANICI - SINIRSIZ ERİŞİM ===');
-          return;
-        } else {
-          console.log('=== PREMIUM DEĞİL - NORMAL KONTROL ===');
-        }
-      } else {
-        console.log('Kullanıcı dokümanı bulunamadı!');
-      }
-      
-      // Premium değilse normal süre kontrolü
-      const firstUseDate = await AsyncStorage.getItem('firstUseDate');
-      const currentDate = new Date();
-      
-      if (!firstUseDate) {
-        // İlk kullanım, tarihi kaydet
-        await AsyncStorage.setItem('firstUseDate', currentDate.toISOString());
-        setDaysLeft(3);
-        setIsExpired(false);
-        console.log('İlk kullanım - 3 gün verildi');
-      } else {
-        // Kullanım süresini hesapla
-        const firstDate = new Date(firstUseDate);
-        const timeDiff = currentDate.getTime() - firstDate.getTime();
-        const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
-        const remainingDays = Math.max(0, 3 - daysDiff);
-        
-        setDaysLeft(remainingDays);
-        setIsExpired(remainingDays <= 0);
-        console.log(`Kalan gün: ${remainingDays}, Süresi dolmuş: ${remainingDays <= 0}`);
-      }
-    } catch (error) {
-      console.error('=== PREMIUM KONTROL HATASI ===');
-      console.error('Hata detayı:', error);
-    }
-  };
-
-  // Premium satın alma
-  const handlePremiumPurchase = () => {
-    router.push('/premium-purchase');
-  };
-
-  // Destek mesajı gönderme
-  const handleSendSupportMessage = async () => {
-    if (!supportMessage.trim()) {
-      Alert.alert('Uyarı', 'Lütfen bir mesaj yazın!');
-      return;
-    }
-
-    try {
-      const auth = getAuth(app);
-      const user = auth.currentUser;
-      
-      if (!user) {
-        Alert.alert('Hata', 'Kullanıcı giriş yapmamış!');
-        return;
-      }
-
-      const db = getFirestore(app);
-      await addDoc(collection(db, 'support_messages'), {
-        userId: user.uid,
-        userEmail: user.email,
-        userName: user.displayName || 'Anonim',
-        message: supportMessage,
-        createdAt: Timestamp.now(),
-        status: 'pending', // pending, answered, closed
-        adminResponse: null,
-        adminResponseDate: null,
-      });
-
-      Alert.alert('Başarılı', 'Mesajınız admin\'e iletildi. En kısa sürede size cevap verilecektir.');
-      setSupportModalVisible(false);
-      setSupportMessage('');
-    } catch (error) {
-      console.error('Destek mesajı gönderme hatası:', error);
-      Alert.alert('Hata', 'Mesaj gönderilemedi!');
-    }
-  };
 
   const handleLogout = async () => {
     const auth = getAuth(app);
@@ -390,51 +194,7 @@ export default function RationChoice() {
           />
         </View>
         
-        {/* Kullanım süresi bilgisi - sadece normal kullanıcılar için */}
-        {!isAdmin && (
-          <View style={styles.usageInfo}>
-            {isPremium ? (
-              <View>
-                <Text style={styles.premiumText}>
-                  🌟 Premium Üye: Sınırsız erişim
-                </Text>
-                <TouchableOpacity 
-                  style={styles.refreshButton} 
-                  onPress={() => {
-                    console.log('=== MANUEL YENİLEME BUTONU TIKLANDI (PREMIUM) ===');
-                    checkUsageTime();
-                  }}
-                >
-                  <Text style={styles.refreshButtonText}>🔄 Premium Durumunu Yenile</Text>
-                </TouchableOpacity>
-              </View>
-            ) : !isExpired ? (
-              <View>
-                <Text style={styles.usageText}>
-                  ⏰ Ücretsiz deneme: <Text style={styles.daysLeft}>{daysLeft} gün</Text> kaldı
-                </Text>
-                <TouchableOpacity 
-                  style={styles.refreshButton} 
-                  onPress={checkUsageTime}
-                >
-                  <Text style={styles.refreshButtonText}>🔄 Yenile</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View>
-                <Text style={styles.expiredText}>
-                  ⚠️ Ücretsiz deneme süreniz doldu!
-                </Text>
-                <TouchableOpacity 
-                  style={styles.refreshButton} 
-                  onPress={checkUsageTime}
-                >
-                  <Text style={styles.refreshButtonText}>🔄 Yenile</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        )}
+
         
         <Text style={styles.title}>
           {isAdmin ? 'Ne yapmak istersin?' : 'Ne yapmak istersin?'}
@@ -453,186 +213,34 @@ export default function RationChoice() {
         )}
         
         <TouchableOpacity 
-          style={[styles.button, (!isPremium && isExpired && !isAdmin) && styles.buttonDisabled]} 
+          style={styles.button} 
           onPress={() => {
-            console.log('=== RASYON BUTONU TIKLANDI ===');
-            console.log('isPremium:', isPremium);
-            console.log('isExpired:', isExpired);
-            console.log('isAdmin:', isAdmin);
-            console.log('Buton disabled:', !isPremium && isExpired && !isAdmin);
-            
-            if (!isPremium && isExpired && !isAdmin) {
-              console.log('Premium satın alma sayfasına yönlendiriliyor...');
-              handlePremiumPurchase();
-            } else {
-              console.log('Rasyon hesaplama sayfasına yönlendiriliyor...');
-              router.push('/ration');
-            }
+            console.log('Rasyon hesaplama sayfasına yönlendiriliyor...');
+            router.push('/ration');
           }}
-          disabled={!isPremium && isExpired && !isAdmin}
         >
-          <Text style={[styles.buttonText, (!isPremium && isExpired && !isAdmin) && styles.buttonTextDisabled]}>
-            🐄 Rasyon Hesaplama {isPremium ? '(Aktif)' : '(Pasif)'}
+          <Text style={styles.buttonText}>
+            🐄 Rasyon Hesaplama
           </Text>
         </TouchableOpacity>
         
         <TouchableOpacity 
-          style={[styles.button, (!isPremium && isExpired && !isAdmin) && styles.buttonDisabled]} 
+          style={styles.button} 
           onPress={() => {
-            if (!isPremium && isExpired && !isAdmin) {
-              handlePremiumPurchase();
-            } else {
-              router.push('/ration-by-feed');
-            }
+            router.push('/ration-by-feed');
           }}
-          disabled={!isPremium && isExpired && !isAdmin}
         >
-          <Text style={[styles.buttonText, (!isPremium && isExpired && !isAdmin) && styles.buttonTextDisabled]}>
+          <Text style={styles.buttonText}>
             🌾 Elimdeki Yemlerle Hesapla
           </Text>
         </TouchableOpacity>
         
-        {/* Premium satın alma butonu - sadece süresi dolmuş kullanıcılar için */}
-        {!isPremium && isExpired && !isAdmin && (
-          <TouchableOpacity 
-            style={styles.premiumButton} 
-            onPress={handlePremiumPurchase}
-          >
-            <Text style={styles.premiumButtonText}>
-              🌟 Premium Ol ve Devam Et
-            </Text>
-          </TouchableOpacity>
-        )}
+
         
-        {/* Sorun Bildirme Butonu - Tüm kullanıcılar için */}
-        <TouchableOpacity 
-          style={styles.supportButton} 
-          onPress={() => setSupportModalVisible(true)}
-        >
-          <Text style={styles.supportButtonText}>
-            🆘 Sorun Bildir / Destek Al
-          </Text>
-        </TouchableOpacity>
-        
-        {/* Bildirim Butonu - Sol alt köşe */}
-        {!isAdmin && (
-          <TouchableOpacity 
-            style={styles.notificationButton} 
-            onPress={() => {
-              setNotificationModalVisible(true);
-              markNotificationsAsRead();
-            }}
-          >
-            <Ionicons name="notifications" size={24} color="#ffffff" />
-            {unreadCount > 0 && (
-              <View style={styles.notificationBadge}>
-                <Text style={styles.notificationBadgeText}>
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        )}
+
       </View>
       
-      {/* Sorun Bildirme Modal */}
-      <Modal visible={supportModalVisible} transparent animationType="slide">
-        <View style={styles.modalBg}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>🆘 Sorun Bildir / Destek Al</Text>
-            <Text style={styles.modalSubtitle}>
-              Yaşadığınız sorunu veya sorunuzu yazın, admin size cevap verecektir.
-            </Text>
-            
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Sorununuzu veya sorunuzu detaylı bir şekilde yazın..."
-              value={supportMessage}
-              onChangeText={setSupportMessage}
-              multiline
-              numberOfLines={6}
-              placeholderTextColor="#687076"
-            />
-            
-            <View style={styles.modalButtonRow}>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.cancelButton]} 
-                onPress={() => {
-                  setSupportModalVisible(false);
-                  setSupportMessage('');
-                }}
-              >
-                <Text style={styles.cancelButtonText}>İptal</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.sendButton]} 
-                onPress={handleSendSupportMessage}
-              >
-                <Text style={styles.sendButtonText}>Gönder</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-      
-      {/* Bildirim Modal */}
-      <Modal visible={notificationModalVisible} transparent animationType="slide">
-        <View style={styles.modalBg}>
-          <View style={styles.notificationModalCard}>
-            {/* Header */}
-            <View style={styles.notificationModalHeader}>
-              <Text style={styles.modalTitle}>🔔 Bildirimler</Text>
-            </View>
-            
-            {/* Content */}
-            <View style={styles.notificationModalContent}>
-              {notifications.length === 0 ? (
-                <View style={styles.emptyNotificationContainer}>
-                  <Text style={styles.noNotificationText}>
-                    Henüz bildiriminiz yok.
-                  </Text>
-                </View>
-              ) : (
-                <ScrollView 
-                  style={styles.notificationList} 
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={styles.notificationListContent}
-                >
-                  {notifications.map((notification: any) => (
-                    <View key={notification.id} style={[
-                      styles.notificationItem,
-                      !notification.read && styles.unreadNotification
-                    ]}>
-                      <View style={styles.notificationHeader}>
-                        <Text style={styles.notificationTitle}>
-                          {notification.read ? '📧' : '📬'} Admin Mesajı
-                        </Text>
-                        <Text style={styles.notificationDate}>
-                          {formatDate(notification.createdAt)}
-                        </Text>
-                      </View>
-                      <Text style={styles.notificationMessage}>
-                        {notification.message}
-                      </Text>
-                    </View>
-                  ))}
-                </ScrollView>
-              )}
-            </View>
-            
-            {/* Footer - Her zaman görünür */}
-            <View style={styles.notificationModalFooter}>
-              <TouchableOpacity 
-                style={styles.closeButton} 
-                onPress={() => setNotificationModalVisible(false)}
-              >
-                <Text style={styles.closeButtonText}>Kapat</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+
     </ScrollView>
   );
 }
@@ -1085,9 +693,9 @@ const styles = StyleSheet.create({
   notificationModalCard: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
-    width: '90%',
-    maxWidth: 400,
-    height: '70%',
+    width: '85%',
+    height: '65%',
+    alignSelf: 'center',
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
